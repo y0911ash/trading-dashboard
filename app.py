@@ -217,58 +217,58 @@ with st.sidebar:
     st.caption("Strategy Backtester")
     st.divider()
 
-    st.markdown("**MARKET DATA**")
-    ticker = st.text_input("Stock Ticker", value="AAPL", placeholder="e.g. AAPL, TSLA, MSFT").upper().strip()
-    range_map = {"1M": "1mo", "3M": "3mo", "6M": "6mo", "1Y": "1y", "2Y": "2y"}
-    date_range = st.select_slider("Date Range", options=list(range_map.keys()), value="1Y")
-    st.divider()
+    with st.form("backtest_form"):
+        st.markdown("**MARKET DATA**")
+        ticker = st.text_input("Stock Ticker", value="AAPL", placeholder="e.g. AAPL, TSLA, MSFT").upper().strip()
+        range_map = {"1M": "1mo", "3M": "3mo", "6M": "6mo", "1Y": "1y", "2Y": "2y"}
+        date_range = st.select_slider("Date Range", options=list(range_map.keys()), value="1Y")
+        st.divider()
 
-    st.markdown("**STRATEGY**")
-    strategy = st.selectbox("Select Strategy", [
-        "Moving Average Crossover", "RSI Momentum", "Bollinger Bands", "MACD"
-    ])
+        st.markdown("**STRATEGY**")
+        strategy = st.selectbox("Select Strategy", [
+            "Moving Average Crossover", "RSI Momentum", "Bollinger Bands", "MACD"
+        ])
 
-    params = {}
-    if strategy == "Moving Average Crossover":
-        params['ma_type'] = st.selectbox("MA Type", ["SMA", "EMA"])
-        c1, c2 = st.columns(2)
-        params['short'] = c1.number_input("Short Window", value=20, min_value=2, max_value=100)
-        params['long'] = c2.number_input("Long Window", value=50, min_value=5, max_value=200)
-    elif strategy == "RSI Momentum":
-        params['period'] = st.number_input("RSI Period", value=14, min_value=2, max_value=50)
-        c1, c2 = st.columns(2)
-        params['oversold'] = c1.number_input("Oversold", value=30, min_value=5, max_value=45)
-        params['overbought'] = c2.number_input("Overbought", value=70, min_value=55, max_value=95)
-    elif strategy == "Bollinger Bands":
-        c1, c2 = st.columns(2)
-        params['period'] = c1.number_input("Period", value=20, min_value=5, max_value=50)
-        params['std'] = c2.number_input("Std Dev", value=2.0, min_value=0.5, max_value=4.0, step=0.5)
-    elif strategy == "MACD":
-        c1, c2 = st.columns(2)
-        params['fast'] = c1.number_input("Fast", value=12, min_value=2, max_value=50)
-        params['slow'] = c2.number_input("Slow", value=26, min_value=5, max_value=100)
-        params['signal'] = st.number_input("Signal", value=9, min_value=2, max_value=30)
-    st.divider()
+        params = {}
+        if strategy == "Moving Average Crossover":
+            params['ma_type'] = st.selectbox("MA Type", ["SMA", "EMA"])
+            c1, c2 = st.columns(2)
+            params['short'] = c1.number_input("Short Window", value=20, min_value=2, max_value=100)
+            params['long'] = c2.number_input("Long Window", value=50, min_value=5, max_value=200)
+        elif strategy == "RSI Momentum":
+            params['period'] = st.number_input("RSI Period", value=14, min_value=2, max_value=50)
+            c1, c2 = st.columns(2)
+            params['oversold'] = c1.number_input("Oversold", value=30, min_value=5, max_value=45)
+            params['overbought'] = c2.number_input("Overbought", value=70, min_value=55, max_value=95)
+        elif strategy == "Bollinger Bands":
+            c1, c2 = st.columns(2)
+            params['period'] = c1.number_input("Period", value=20, min_value=5, max_value=50)
+            params['std'] = c2.number_input("Std Dev", value=2.0, min_value=0.5, max_value=4.0, step=0.5)
+        elif strategy == "MACD":
+            c1, c2 = st.columns(2)
+            params['fast'] = c1.number_input("Fast", value=12, min_value=2, max_value=50)
+            params['slow'] = c2.number_input("Slow", value=26, min_value=5, max_value=100)
+            params['signal'] = st.number_input("Signal", value=9, min_value=2, max_value=30)
+        st.divider()
 
-    st.markdown("**SETTINGS**")
-    use_commission = st.toggle("Commission (0.1%)", value=False)
-    capital = st.number_input("Starting Capital ($)", value=10000, min_value=1000, step=1000)
-    st.divider()
+        st.markdown("**SETTINGS**")
+        use_commission = st.toggle("Commission (0.1%)", value=False)
+        capital = st.number_input("Starting Capital ($)", value=10000, min_value=1000, step=1000)
+        st.divider()
 
-    run_btn = st.button("▶ Run Backtest", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("▶ Run Backtest", type="primary", use_container_width=True)
 
 # ─── MAIN ───
 st.markdown("# 📊 AlgoTrader Pro")
 
-if run_btn or 'results' in st.session_state:
-    if run_btn:
+if submitted or 'results' in st.session_state:
+    if submitted:
         with st.spinner("Fetching data & running backtest..."):
             try:
                 df = yf.download(ticker, period=range_map[date_range], interval="1d", progress=False)
                 if df.empty:
                     st.error(f"No data found for ticker **{ticker}**. Please try another.")
                     st.stop()
-                # Flatten multi-level columns if present
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
             except Exception as e:
@@ -282,68 +282,64 @@ if run_btn or 'results' in st.session_state:
             st.session_state['results'] = {
                 'df': df, 'trades': trades, 'equity': equity, 'buy_hold': buy_hold,
                 'metrics': metrics, 'sig_map': sig_map, 'overlays': overlays,
-                'ticker': ticker, 'strategy': strategy
+                'ticker': str(ticker).replace('(', '').replace(')', '').replace("'", ""), 
+                'strategy': strategy
             }
 
     r = st.session_state['results']
     df, trades, equity, buy_hold, metrics = r['df'], r['trades'], r['equity'], r['buy_hold'], r['metrics']
-    sig_map, overlays, ticker_name = r['sig_map'], r['overlays'], r['ticker']
+    sig_map, overlays, t_name = r['sig_map'], r['overlays'], r['ticker']
 
     # ─── METRICS ───
-    cols = st.columns(7)
-    metric_items = [
-        ("Total Return", f"{metrics['Total Return']:.2f}%"),
-        ("Sharpe Ratio", f"{metrics['Sharpe Ratio']:.2f}"),
-        ("Sortino Ratio", f"{metrics['Sortino Ratio']:.2f}"),
-        ("Max Drawdown", f"{metrics['Max Drawdown']:.2f}%"),
-        ("Win Rate", f"{metrics['Win Rate']:.1f}%"),
-        ("Total Trades", f"{metrics['Total Trades']}"),
-        ("Avg Profit/Trade", f"${metrics['Avg Profit/Trade']:.2f}"),
-    ]
-    for col, (label, value) in zip(cols, metric_items):
-        col.metric(label, value)
+    m_cols = st.columns(len(metrics))
+    for col, (label, val) in zip(m_cols, metrics.items()):
+        if isinstance(val, float):
+            v_str = f"{val:.2f}%" if "Return" in label or "Win" in label or "Drawdown" in label else f"{val:.2f}"
+            if "Profit" in label: v_str = f"${val:.2f}"
+        else:
+            v_str = str(val)
+        col.metric(label, v_str)
 
     # ─── PRICE CHART ───
-    fig = make_subplots(rows=1, cols=1)
+    fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df.index, y=df['Close'], name='Close', line=dict(color='#6366f1', width=1.5),
         fill='tozeroy', fillcolor='rgba(99,102,241,0.05)'
     ))
 
-    overlay_colors = {'Short MA': '#f59e0b', 'Long MA': '#3b82f6', 'BB Mid': '#8b5cf6',
-                      'BB Upper': '#ef4444', 'BB Lower': '#10b981'}
+    o_colors = {'Short MA': '#f59e0b', 'Long MA': '#3b82f6', 'BB Mid': '#8b5cf6',
+                'BB Upper': '#ef4444', 'BB Lower': '#10b981'}
     for name, series in overlays.items():
-        if name in ('RSI', 'MACD', 'Signal', 'Histogram'):
-            continue
-        dash = 'dash' if 'BB' in name and name != 'BB Mid' else 'solid'
+        if any(x in name for x in ('RSI', 'MACD', 'Signal', 'Histogram')): continue
+        dash = 'dash' if 'BB' in name and 'Mid' not in name else 'solid'
         fig.add_trace(go.Scatter(
             x=df.index, y=series, name=name,
-            line=dict(color=overlay_colors.get(name, '#888'), width=1.2, dash=dash)
+            line=dict(color=o_colors.get(name, '#888'), width=1.2, dash=dash)
         ))
 
-    buy_dates = [df.index[i] for i in sig_map if sig_map[i] == 'BUY']
-    buy_prices = [df['Close'].iloc[i] for i in sig_map if sig_map[i] == 'BUY']
-    sell_dates = [df.index[i] for i in sig_map if sig_map[i] == 'SELL']
-    sell_prices = [df['Close'].iloc[i] for i in sig_map if sig_map[i] == 'SELL']
+    b_dates = [df.index[i] for i in sig_map if sig_map[i] == 'BUY']
+    b_prices = [df['Close'].iloc[i] for i in sig_map if sig_map[i] == 'BUY']
+    s_dates = [df.index[i] for i in sig_map if sig_map[i] == 'SELL']
+    s_prices = [df['Close'].iloc[i] for i in sig_map if sig_map[i] == 'SELL']
 
     fig.add_trace(go.Scatter(
-        x=buy_dates, y=buy_prices, mode='markers', name='BUY',
+        x=b_dates, y=b_prices, mode='markers', name='BUY',
         marker=dict(symbol='triangle-up', size=14, color='#10b981', line=dict(width=1, color='white'))
     ))
     fig.add_trace(go.Scatter(
-        x=sell_dates, y=sell_prices, mode='markers', name='SELL',
+        x=s_dates, y=s_prices, mode='markers', name='SELL',
         marker=dict(symbol='triangle-down', size=14, color='#ef4444', line=dict(width=1, color='white'))
     ))
 
     fig.update_layout(
-        title=f"📈 {ticker_name} — Price Chart & Signals",
+        title=dict(text=f"📈 {t_name} — Price Plot & Signals", x=0.5, xanchor='center'),
         template='plotly_dark', height=500,
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(gridcolor='rgba(42,48,66,0.4)'),
         yaxis=dict(gridcolor='rgba(42,48,66,0.4)', tickprefix='$'),
-        legend=dict(orientation='h', y=1.12),
+        legend=dict(orientation='h', y=-0.15, x=0.5, xanchor='center'),
         hovermode='x unified',
-        margin=dict(l=0, r=0, t=60, b=0)
+        margin=dict(l=20, r=20, t=80, b=100)
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -358,16 +354,17 @@ if run_btn or 'results' in st.session_state:
         line=dict(color='#6366f1', width=1.5, dash='dash')
     ))
     fig2.update_layout(
-        title="📊 Equity Curve — Strategy vs Buy & Hold",
+        title=dict(text="📊 Equity Curve — Strategy vs Buy & Hold", x=0.5, xanchor='center'),
         template='plotly_dark', height=350,
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(gridcolor='rgba(42,48,66,0.4)'),
         yaxis=dict(gridcolor='rgba(42,48,66,0.4)', tickprefix='$'),
-        legend=dict(orientation='h', y=1.12),
+        legend=dict(orientation='h', y=-0.25, x=0.5, xanchor='center'),
         hovermode='x unified',
-        margin=dict(l=0, r=0, t=60, b=0)
+        margin=dict(l=20, r=20, t=60, b=80)
     )
     st.plotly_chart(fig2, use_container_width=True)
+
 
     # ─── TRADE LOG ───
     st.markdown("### 📋 Trade Log")
