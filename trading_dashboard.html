@@ -111,7 +111,7 @@ tr:hover td{background:var(--bg-hover)}
     <div class="section">
       <div class="section-title">Market Data</div>
       <label for="ticker">Stock Ticker</label>
-      <input type="text" id="ticker" value="AAPL" placeholder="e.g. AAPL, TSLA, MSFT" spellcheck="false">
+      <input type="text" id="ticker" value="AAPL" placeholder="e.g. AAPL, TANLA.NS, MSFT" spellcheck="false">
       <label style="margin-top:12px">Date Range</label>
       <div class="range-pills">
         <div class="pill" data-range="1mo">1M</div>
@@ -226,28 +226,45 @@ document.getElementById('ticker').addEventListener('keydown', e => { if (e.key =
 // ─── DATA FETCHING ───
 async function fetchData(ticker, range) {
   const interval = '1d';
-  const urls = [
-    `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`,
-    `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`)}`,
-  ];
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
-      if (!r.ok) continue;
-      const j = await r.json();
-      const res = j.chart.result[0];
-      const ts = res.timestamp;
-      const q = res.indicators.quote[0];
-      if (!ts || !q.open) continue;
-      const data = [];
-      for (let i = 0; i < ts.length; i++) {
-        if (q.close[i] == null) continue;
-        data.push({ date: new Date(ts[i] * 1000), o: q.open[i], h: q.high[i], l: q.low[i], c: q.close[i], v: q.volume[i] });
-      }
-      return data;
-    } catch (_) { continue; }
+  
+  const attemptFetch = async (sym) => {
+    const urls = [
+      `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${range}`,
+      `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${range}`)}`,
+    ];
+    for (const url of urls) {
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const res = j.chart.result[0];
+        const ts = res.timestamp;
+        const q = res.indicators.quote[0];
+        if (!ts || !q.open) continue;
+        const data = [];
+        for (let i = 0; i < ts.length; i++) {
+          if (q.close[i] == null) continue;
+          data.push({ date: new Date(ts[i] * 1000), o: q.open[i], h: q.high[i], l: q.low[i], c: q.close[i], v: q.volume[i] });
+        }
+        return data;
+      } catch (_) { continue; }
+    }
+    return null;
+  };
+
+  // 1. Initial attempt
+  let results = await attemptFetch(ticker);
+  
+  // 2. If it fails and has no suffix, try .NS (NSE)
+  if (!results && !ticker.includes('.')) {
+    console.log(`Initial fetch failed for ${ticker}. Retrying with .NS suffix...`);
+    results = await attemptFetch(`${ticker}.NS`);
+    if (results) {
+       document.getElementById('ticker').value = `${ticker}.NS`;
+    }
   }
-  return generateSynthetic(ticker, range);
+
+  return results || generateSynthetic(ticker, range);
 }
 
 function generateSynthetic(ticker, range) {

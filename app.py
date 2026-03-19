@@ -219,7 +219,8 @@ with st.sidebar:
 
     with st.form("backtest_form"):
         st.markdown("**MARKET DATA**")
-        ticker = st.text_input("Stock Ticker", value="AAPL", placeholder="e.g. AAPL, TSLA, MSFT").upper().strip()
+        ticker = st.text_input("Stock Ticker", value="AAPL", placeholder="e.g. AAPL, TANLA.NS, MSFT").upper().strip()
+        st.caption("💡 Tip: Use `.NS` for NSE (e.g., `TANLA.NS`) or `.BO` for BSE.")
         range_map = {"1M": "1mo", "3M": "3mo", "6M": "6mo", "1Y": "1y", "2Y": "2y"}
         date_range = st.select_slider("Date Range", options=list(range_map.keys()), value="1Y")
         st.divider()
@@ -265,9 +266,18 @@ if submitted or 'results' in st.session_state:
     if submitted:
         with st.spinner("Fetching data & running backtest..."):
             try:
+                # 1. Initial attempt
                 df = yf.download(ticker, period=range_map[date_range], interval="1d", progress=False)
-                if df.empty:
-                    st.error(f"No data found for ticker **{ticker}**. Please try another.")
+                
+                # 2. Auto-retry with .NS for Indian stocks if fails
+                if (df is None or df.empty) and "." not in ticker:
+                    retry_ticker = f"{ticker}.NS"
+                    df = yf.download(retry_ticker, period=range_map[date_range], interval="1d", progress=False)
+                    if df is not None and not df.empty:
+                        ticker = retry_ticker
+
+                if df is None or df.empty:
+                    st.error(f"No data found for ticker **{ticker}**. Please try another or add a suffix like `.NS`.")
                     st.stop()
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
