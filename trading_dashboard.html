@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AlgoTrader Pro — Strategy Backtester</title>
+<meta name="description" content="Interactive algorithmic trading strategy backtester dashboard for equities">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-primary:#0a0e17;--bg-secondary:#111827;--bg-card:#1a1f2e;--bg-hover:#252b3b;
+  --border:#2a3042;--text-primary:#e2e8f0;--text-secondary:#94a3b8;--text-muted:#64748b;
+  --accent:#6366f1;--accent-glow:rgba(99,102,241,.15);--green:#10b981;--green-bg:rgba(16,185,129,.12);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.12);--yellow:#f59e0b;--blue:#3b82f6;
+  --radius:10px;--shadow:0 4px 24px rgba(0,0,0,.4);
+}
+body{font-family:'Inter',sans-serif;background:var(--bg-primary);color:var(--text-primary);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg-secondary)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.app{display:grid;grid-template-columns:300px 1fr;min-height:100vh}
+@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{position:fixed;left:-320px;z-index:100;transition:.3s}.sidebar.open{left:0}.mobile-toggle{display:flex!important}}
+
+/* SIDEBAR */
+.sidebar{background:var(--bg-secondary);border-right:1px solid var(--border);padding:0;overflow-y:auto;display:flex;flex-direction:column}
+.sidebar-header{padding:24px 20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.logo{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),#818cf8);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff}
+.sidebar-header h1{font-size:16px;font-weight:700;letter-spacing:-.3px}
+.sidebar-header span{font-size:11px;color:var(--text-muted);display:block;margin-top:2px}
+.section{padding:16px 20px;border-bottom:1px solid var(--border)}
+.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:12px}
+label{font-size:12px;color:var(--text-secondary);margin-bottom:4px;display:block;font-weight:500}
+input[type=text],select{width:100%;padding:10px 12px;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-primary);font-family:inherit;font-size:13px;outline:none;transition:.2s}
+input[type=text]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.range-pills{display:flex;gap:4px;margin-top:8px}
+.pill{flex:1;padding:7px 0;text-align:center;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer;background:var(--bg-primary);border:1px solid var(--border);color:var(--text-secondary);transition:.2s}
+.pill.active,.pill:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.param-row{display:flex;gap:8px;margin-bottom:8px}
+.param-row>div{flex:1}
+.param-row input[type=text]{text-align:center;font-family:'JetBrains Mono',monospace;font-size:13px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
+.toggle-row label{margin:0}
+.toggle{width:40px;height:22px;background:var(--border);border-radius:11px;position:relative;cursor:pointer;transition:.2s}
+.toggle.on{background:var(--accent)}
+.toggle::after{content:'';position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.2s}
+.toggle.on::after{left:20px}
+
+.btn{width:100%;padding:12px;border:none;border-radius:var(--radius);font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;transition:.2s;margin-top:8px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#818cf8);color:#fff;box-shadow:0 4px 16px rgba(99,102,241,.3)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(99,102,241,.4)}
+.btn-primary:active{transform:translateY(0)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* MAIN */
+.main{padding:20px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:20px}
+.mobile-toggle{display:none;position:fixed;top:12px;left:12px;z-index:101;width:40px;height:40px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;align-items:center;justify-content:center;cursor:pointer;color:var(--text-primary);font-size:20px}
+
+/* METRICS */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.metric-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;transition:.2s}
+.metric-card:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.metric-label{font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.metric-value{font-size:22px;font-weight:700;margin-top:4px;font-family:'JetBrains Mono',monospace}
+.metric-value.positive{color:var(--green)}.metric-value.negative{color:var(--red)}
+
+/* CHARTS */
+.chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;position:relative}
+.chart-card h2{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.chart-card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.chart-wrap{position:relative;width:100%;height:400px}
+.chart-wrap canvas{width:100%!important;height:100%!important}
+
+/* TABLE */
+.table-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.table-card h2{font-size:14px;font-weight:600;padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.table-wrap{overflow-x:auto;max-height:350px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{position:sticky;top:0;background:var(--bg-secondary);padding:10px 16px;text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);border-bottom:1px solid var(--border)}
+td{padding:10px 16px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px}
+tr:hover td{background:var(--bg-hover)}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.tag-buy{background:var(--green-bg);color:var(--green)}
+.tag-sell{background:var(--red-bg);color:var(--red)}
+
+/* LOADING */
+.loading-overlay{position:absolute;inset:0;background:rgba(10,14,23,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:var(--radius);z-index:10;gap:12px}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--text-secondary)}
+
+/* EMPTY STATE */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;text-align:center;color:var(--text-muted)}
+.empty-state .icon{font-size:48px;margin-bottom:16px;opacity:.5}
+.empty-state h3{font-size:16px;color:var(--text-secondary);margin-bottom:8px}
+.empty-state p{font-size:13px;max-width:300px}
+
+/* STRATEGY PARAMS (hidden by default) */
+.strategy-params{display:none}.strategy-params.visible{display:block}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</div>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">A</div>
+      <div><h1>AlgoTrader Pro</h1><span>Strategy Backtester</span></div>
+    </div>
+    <div class="section">
+      <div class="section-title">Market Data</div>
+      <label for="ticker">Stock Ticker</label>
+      <input type="text" id="ticker" value="AAPL" placeholder="e.g. AAPL, TSLA, MSFT" spellcheck="false">
+      <label style="margin-top:12px">Date Range</label>
+      <div class="range-pills">
+        <div class="pill" data-range="1mo">1M</div>
+        <div class="pill" data-range="3mo">3M</div>
+        <div class="pill" data-range="6mo">6M</div>
+        <div class="pill active" data-range="1y">1Y</div>
+        <div class="pill" data-range="2y">2Y</div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Strategy</div>
+      <label for="strategy">Select Strategy</label>
+      <select id="strategy">
+        <option value="ma">Moving Average Crossover</option>
+        <option value="rsi">RSI Momentum</option>
+        <option value="bb">Bollinger Bands</option>
+        <option value="macd">MACD</option>
+      </select>
+      <!-- MA params -->
+      <div class="strategy-params visible" id="params-ma">
+        <label style="margin-top:12px">MA Type</label>
+        <select id="ma-type"><option value="SMA">SMA</option><option value="EMA">EMA</option></select>
+        <div class="param-row" style="margin-top:8px">
+          <div><label>Short Window</label><input type="text" id="ma-short" value="20"></div>
+          <div><label>Long Window</label><input type="text" id="ma-long" value="50"></div>
+        </div>
+      </div>
+      <!-- RSI params -->
+      <div class="strategy-params" id="params-rsi">
+        <div class="param-row" style="margin-top:12px">
+          <div><label>RSI Period</label><input type="text" id="rsi-period" value="14"></div>
+        </div>
+        <div class="param-row">
+          <div><label>Oversold</label><input type="text" id="rsi-oversold" value="30"></div>
+          <div><label>Overbought</label><input type="text" id="rsi-overbought" value="70"></div>
+        </div>
+      </div>
+      <!-- BB params -->
+      <div class="strategy-params" id="params-bb">
+        <div class="param-row" style="margin-top:12px">
+          <div><label>Period</label><input type="text" id="bb-period" value="20"></div>
+          <div><label>Std Dev</label><input type="text" id="bb-std" value="2"></div>
+        </div>
+      </div>
+      <!-- MACD params -->
+      <div class="strategy-params" id="params-macd">
+        <div class="param-row" style="margin-top:12px">
+          <div><label>Fast</label><input type="text" id="macd-fast" value="12"></div>
+          <div><label>Slow</label><input type="text" id="macd-slow" value="26"></div>
+        </div>
+        <div class="param-row">
+          <div><label>Signal</label><input type="text" id="macd-signal" value="9"></div>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Settings</div>
+      <div class="toggle-row">
+        <label>Commission (0.1%)</label>
+        <div class="toggle" id="commission-toggle" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <label style="margin-top:4px">Starting Capital</label>
+      <input type="text" id="capital" value="10000" style="font-family:'JetBrains Mono',monospace">
+    </div>
+    <div class="section" style="border-bottom:none">
+      <button class="btn btn-primary" id="run-btn" onclick="runBacktest()">▶ Run Backtest</button>
+    </div>
+  </aside>
+
+  <main class="main" id="main-content">
+    <div class="empty-state" id="empty-state">
+      <div class="icon">📈</div>
+      <h3>Welcome to AlgoTrader Pro</h3>
+      <p>Enter a stock ticker, choose a strategy, and hit <strong>Run Backtest</strong> to get started.</p>
+    </div>
+    <div id="dashboard" style="display:none">
+      <div class="metrics-grid" id="metrics-grid"></div>
+      <div class="chart-card" id="price-chart-card">
+        <h2><span class="dot"></span>Price Chart & Signals</h2>
+        <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h2><span class="dot" style="background:var(--green)"></span>Equity Curve</h2>
+        <div class="chart-wrap" style="height:280px"><canvas id="equityChart"></canvas></div>
+      </div>
+      <div class="table-card">
+        <h2><span class="dot" style="background:var(--yellow)"></span>Trade Log</h2>
+        <div class="table-wrap"><table id="trade-table"><thead><tr><th>#</th><th>Date</th><th>Type</th><th>Price</th><th>Shares</th><th>P&L</th><th>Cum. Return</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+
+// ─── STATE ───
+let priceChart = null, equityChart = null, selectedRange = '1y';
+
+// ─── UI WIRING ───
+document.querySelectorAll('.pill').forEach(p => {
+  p.addEventListener('click', () => {
+    document.querySelectorAll('.pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    selectedRange = p.dataset.range;
+  });
+});
+document.getElementById('strategy').addEventListener('change', e => {
+  document.querySelectorAll('.strategy-params').forEach(p => p.classList.remove('visible'));
+  document.getElementById('params-' + e.target.value).classList.add('visible');
+});
+document.getElementById('ticker').addEventListener('keydown', e => { if (e.key === 'Enter') runBacktest(); });
+
+// ─── DATA FETCHING ───
+async function fetchData(ticker, range) {
+  const interval = '1d';
+  const urls = [
+    `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`,
+    `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`)}`,
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const res = j.chart.result[0];
+      const ts = res.timestamp;
+      const q = res.indicators.quote[0];
+      if (!ts || !q.open) continue;
+      const data = [];
+      for (let i = 0; i < ts.length; i++) {
+        if (q.close[i] == null) continue;
+        data.push({ date: new Date(ts[i] * 1000), o: q.open[i], h: q.high[i], l: q.low[i], c: q.close[i], v: q.volume[i] });
+      }
+      return data;
+    } catch (_) { continue; }
+  }
+  return generateSynthetic(ticker, range);
+}
+
+function generateSynthetic(ticker, range) {
+  const days = { '1mo': 22, '3mo': 63, '6mo': 126, '1y': 252, '2y': 504 }[range] || 252;
+  const seed = [...ticker].reduce((a, c) => a + c.charCodeAt(0), 0);
+  let rng = seed;
+  const rand = () => { rng = (rng * 16807 + 0) % 2147483647; return rng / 2147483647; };
+  const randn = () => Math.sqrt(-2 * Math.log(rand())) * Math.cos(2 * Math.PI * rand());
+  let price = 100 + (seed % 200);
+  const data = [];
+  const start = new Date(); start.setDate(start.getDate() - days);
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    const ret = 0.0004 + 0.018 * randn();
+    const o = price;
+    const c = o * (1 + ret);
+    const h = Math.max(o, c) * (1 + Math.abs(randn()) * 0.008);
+    const l = Math.min(o, c) * (1 - Math.abs(randn()) * 0.008);
+    const v = Math.round(5e6 + rand() * 2e7);
+    price = c;
+    data.push({ date: d, o, h, l, c, v });
+  }
+  return data;
+}
+
+// ─── INDICATORS ───
+function sma(arr, p) {
+  const r = new Array(arr.length).fill(null);
+  for (let i = p - 1; i < arr.length; i++) {
+    let s = 0; for (let j = i - p + 1; j <= i; j++) s += arr[j];
+    r[i] = s / p;
+  }
+  return r;
+}
+function ema(arr, p) {
+  const r = new Array(arr.length).fill(null);
+  const k = 2 / (p + 1);
+  let sum = 0;
+  for (let i = 0; i < p; i++) sum += arr[i];
+  r[p - 1] = sum / p;
+  for (let i = p; i < arr.length; i++) r[i] = arr[i] * k + r[i - 1] * (1 - k);
+  return r;
+}
+function computeRSI(closes, period) {
+  const rsi = new Array(closes.length).fill(null);
+  if (closes.length < period + 1) return rsi;
+  let gainSum = 0, lossSum = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) gainSum += d; else lossSum -= d;
+  }
+  let avgGain = gainSum / period, avgLoss = lossSum / period;
+  rsi[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period;
+    rsi[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return rsi;
+}
+function bollingerBands(closes, period, mult) {
+  const mid = sma(closes, period);
+  const upper = new Array(closes.length).fill(null);
+  const lower = new Array(closes.length).fill(null);
+  for (let i = period - 1; i < closes.length; i++) {
+    let s = 0;
+    for (let j = i - period + 1; j <= i; j++) s += (closes[j] - mid[i]) ** 2;
+    const std = Math.sqrt(s / period);
+    upper[i] = mid[i] + mult * std;
+    lower[i] = mid[i] - mult * std;
+  }
+  return { mid, upper, lower };
+}
+function computeMACD(closes, fast, slow, sig) {
+  const emaF = ema(closes, fast), emaS = ema(closes, slow);
+  const macdLine = closes.map((_, i) => (emaF[i] != null && emaS[i] != null) ? emaF[i] - emaS[i] : null);
+  const validMACD = macdLine.filter(v => v != null);
+  const sigLineRaw = ema(validMACD, sig);
+  const signalLine = new Array(closes.length).fill(null);
+  let vi = 0;
+  for (let i = 0; i < closes.length; i++) {
+    if (macdLine[i] != null) { signalLine[i] = sigLineRaw[vi] || null; vi++; }
+  }
+  const histogram = closes.map((_, i) => (macdLine[i] != null && signalLine[i] != null) ? macdLine[i] - signalLine[i] : null);
+  return { macdLine, signalLine, histogram };
+}
+
+// ─── STRATEGY SIGNALS ───
+function getSignals(strategy, data, params) {
+  const closes = data.map(d => d.c);
+  const signals = []; // { index, type: 'BUY'|'SELL' }
+  let inPosition = false;
+
+  if (strategy === 'ma') {
+    const fn = params.maType === 'EMA' ? ema : sma;
+    const short = fn(closes, params.short);
+    const long = fn(closes, params.long);
+    for (let i = 1; i < closes.length; i++) {
+      if (short[i] == null || long[i] == null || short[i-1] == null || long[i-1] == null) continue;
+      if (!inPosition && short[i-1] <= long[i-1] && short[i] > long[i]) { signals.push({ index: i, type: 'BUY' }); inPosition = true; }
+      else if (inPosition && short[i-1] >= long[i-1] && short[i] < long[i]) { signals.push({ index: i, type: 'SELL' }); inPosition = false; }
+    }
+    return { signals, overlays: { shortMA: short, longMA: long } };
+  }
+
+  if (strategy === 'rsi') {
+    const rsi = computeRSI(closes, params.period);
+    for (let i = 1; i < closes.length; i++) {
+      if (rsi[i] == null || rsi[i-1] == null) continue;
+      if (!inPosition && rsi[i-1] <= params.oversold && rsi[i] > params.oversold) { signals.push({ index: i, type: 'BUY' }); inPosition = true; }
+      else if (inPosition && rsi[i-1] >= params.overbought && rsi[i] < params.overbought) { signals.push({ index: i, type: 'SELL' }); inPosition = false; }
+    }
+    return { signals, overlays: {}, subIndicator: { name: 'RSI', data: rsi, levels: [params.oversold, params.overbought] } };
+  }
+
+  if (strategy === 'bb') {
+    const { mid, upper, lower } = bollingerBands(closes, params.period, params.std);
+    for (let i = 1; i < closes.length; i++) {
+      if (lower[i] == null) continue;
+      if (!inPosition && closes[i] <= lower[i]) { signals.push({ index: i, type: 'BUY' }); inPosition = true; }
+      else if (inPosition && closes[i] >= upper[i]) { signals.push({ index: i, type: 'SELL' }); inPosition = false; }
+    }
+    return { signals, overlays: { bbMid: mid, bbUpper: upper, bbLower: lower } };
+  }
+
+  if (strategy === 'macd') {
+    const { macdLine, signalLine, histogram } = computeMACD(closes, params.fast, params.slow, params.signal);
+    for (let i = 1; i < closes.length; i++) {
+      if (macdLine[i] == null || signalLine[i] == null || macdLine[i-1] == null || signalLine[i-1] == null) continue;
+      if (!inPosition && macdLine[i-1] <= signalLine[i-1] && macdLine[i] > signalLine[i]) { signals.push({ index: i, type: 'BUY' }); inPosition = true; }
+      else if (inPosition && macdLine[i-1] >= signalLine[i-1] && macdLine[i] < signalLine[i]) { signals.push({ index: i, type: 'SELL' }); inPosition = false; }
+    }
+    return { signals, overlays: {}, subIndicator: { name: 'MACD', macdLine, signalLine, histogram } };
+  }
+  return { signals: [], overlays: {} };
+}
+
+// ─── BACKTEST ENGINE ───
+function runBacktestEngine(data, signals, capital, commission) {
+  let cash = capital, shares = 0, position = null;
+  const trades = [];
+  const equity = data.map(() => capital);
+  const buyHold = data.map((d, i) => capital * (d.c / data[0].c));
+  let cumReturn = 0;
+
+  for (const sig of signals) {
+    const price = data[sig.index].c;
+    const dateStr = data[sig.index].date.toISOString().split('T')[0];
+    if (sig.type === 'BUY' && shares === 0) {
+      const cost = commission ? price * (1 + commission) : price;
+      shares = Math.floor(cash / cost);
+      if (shares <= 0) continue;
+      cash -= shares * cost;
+      position = { buyPrice: price, buyIndex: sig.index, shares, date: dateStr };
+      trades.push({ date: dateStr, type: 'BUY', price, shares, pnl: 0, cumReturn });
+    } else if (sig.type === 'SELL' && shares > 0 && position) {
+      const proceeds = commission ? price * (1 - commission) : price;
+      const pnl = (proceeds - position.buyPrice) * shares;
+      cash += shares * proceeds;
+      cumReturn = ((cash - capital) / capital) * 100;
+      trades.push({ date: dateStr, type: 'SELL', price, shares, pnl, cumReturn });
+      shares = 0; position = null;
+    }
+  }
+
+  // compute equity curve
+  let eqCash = capital, eqShares = 0, tIdx = 0;
+  const sigMap = {};
+  signals.forEach(s => { sigMap[s.index] = s.type; });
+  for (let i = 0; i < data.length; i++) {
+    if (sigMap[i] === 'BUY' && eqShares === 0) {
+      const cost = commission ? data[i].c * (1 + commission) : data[i].c;
+      eqShares = Math.floor(eqCash / cost);
+      eqCash -= eqShares * cost;
+    } else if (sigMap[i] === 'SELL' && eqShares > 0) {
+      const proceeds = commission ? data[i].c * (1 - commission) : data[i].c;
+      eqCash += eqShares * proceeds;
+      eqShares = 0;
+    }
+    equity[i] = eqCash + eqShares * data[i].c;
+  }
+
+  // metrics
+  const finalEquity = equity[equity.length - 1];
+  const totalReturn = ((finalEquity - capital) / capital) * 100;
+  const dailyReturns = [];
+  for (let i = 1; i < equity.length; i++) dailyReturns.push((equity[i] - equity[i-1]) / equity[i-1]);
+  const avgR = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length || 0;
+  const stdR = Math.sqrt(dailyReturns.reduce((a, b) => a + (b - avgR) ** 2, 0) / dailyReturns.length) || 1;
+  const sharpe = (avgR / stdR) * Math.sqrt(252);
+  const negReturns = dailyReturns.filter(r => r < 0);
+  const downDev = Math.sqrt(negReturns.reduce((a, b) => a + b ** 2, 0) / (negReturns.length || 1));
+  const sortino = (avgR / (downDev || 1)) * Math.sqrt(252);
+  let peak = capital, maxDD = 0;
+  for (const eq of equity) { if (eq > peak) peak = eq; const dd = (peak - eq) / peak * 100; if (dd > maxDD) maxDD = dd; }
+  const sellTrades = trades.filter(t => t.type === 'SELL');
+  const wins = sellTrades.filter(t => t.pnl > 0).length;
+  const winRate = sellTrades.length ? (wins / sellTrades.length) * 100 : 0;
+  const avgProfit = sellTrades.length ? sellTrades.reduce((a, t) => a + t.pnl, 0) / sellTrades.length : 0;
+
+  return {
+    trades, equity, buyHold,
+    metrics: { totalReturn, sharpe, sortino, maxDD, winRate, totalTrades: sellTrades.length, avgProfit }
+  };
+}
+
+// ─── RENDER METRICS ───
+function renderMetrics(m) {
+  const fmt = (v, dec = 2) => v.toFixed(dec);
+  const items = [
+    { label: 'Total Return', value: fmt(m.totalReturn) + '%', cls: m.totalReturn >= 0 ? 'positive' : 'negative' },
+    { label: 'Sharpe Ratio', value: fmt(m.sharpe), cls: m.sharpe >= 0 ? 'positive' : 'negative' },
+    { label: 'Sortino Ratio', value: fmt(m.sortino), cls: m.sortino >= 0 ? 'positive' : 'negative' },
+    { label: 'Max Drawdown', value: fmt(m.maxDD) + '%', cls: 'negative' },
+    { label: 'Win Rate', value: fmt(m.winRate, 1) + '%', cls: m.winRate >= 50 ? 'positive' : 'negative' },
+    { label: 'Total Trades', value: m.totalTrades, cls: '' },
+    { label: 'Avg Profit/Trade', value: '$' + fmt(m.avgProfit), cls: m.avgProfit >= 0 ? 'positive' : 'negative' },
+  ];
+  document.getElementById('metrics-grid').innerHTML = items.map(i =>
+    `<div class="metric-card"><div class="metric-label">${i.label}</div><div class="metric-value ${i.cls}">${i.value}</div></div>`
+  ).join('');
+}
+
+// ─── RENDER CHARTS ───
+function renderPriceChart(data, result, overlays) {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  if (priceChart) priceChart.destroy();
+
+  const labels = data.map(d => d.date);
+  const closes = data.map(d => d.c);
+  const datasets = [{
+    label: 'Close', data: closes, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.08)',
+    borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.1, order: 2
+  }];
+
+  // overlays
+  const colors = { shortMA: '#f59e0b', longMA: '#3b82f6', bbMid: '#8b5cf6', bbUpper: 'rgba(239,68,68,.6)', bbLower: 'rgba(16,185,129,.6)' };
+  for (const [key, arr] of Object.entries(overlays)) {
+    datasets.push({
+      label: key, data: arr, borderColor: colors[key] || '#888', borderWidth: 1.2,
+      pointRadius: 0, fill: false, borderDash: key.includes('bb') && key !== 'bbMid' ? [4, 4] : [], order: 3
+    });
+  }
+
+  // BUY/SELL markers
+  const buyPts = new Array(data.length).fill(null);
+  const sellPts = new Array(data.length).fill(null);
+  result.signals.forEach(s => { if (s.type === 'BUY') buyPts[s.index] = data[s.index].c; else sellPts[s.index] = data[s.index].c; });
+  datasets.push({
+    label: 'BUY', data: buyPts, borderColor: '#10b981', backgroundColor: '#10b981',
+    pointStyle: 'triangle', pointRadius: 8, pointHoverRadius: 11, showLine: false, order: 1
+  });
+  datasets.push({
+    label: 'SELL', data: sellPts, borderColor: '#ef4444', backgroundColor: '#ef4444',
+    pointStyle: 'triangle', rotation: 180, pointRadius: 8, pointHoverRadius: 11, showLine: false, order: 1
+  });
+
+  priceChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 11 }, usePointStyle: true, padding: 16 } },
+        tooltip: {
+          backgroundColor: '#1a1f2e', borderColor: '#2a3042', borderWidth: 1, titleColor: '#e2e8f0',
+          bodyColor: '#94a3b8', padding: 12, cornerRadius: 8,
+          callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(2) ?? ''}` }
+        }
+      },
+      scales: {
+        x: { type: 'time', time: { unit: 'month', tooltipFormat: 'MMM dd, yyyy' }, ticks: { color: '#64748b', maxTicksLimit: 12 }, grid: { color: 'rgba(42,48,66,.4)' } },
+        y: { ticks: { color: '#64748b', callback: v => '$' + v.toFixed(0) }, grid: { color: 'rgba(42,48,66,.4)' } }
+      }
+    }
+  });
+}
+
+function renderEquityChart(data, equity, buyHold) {
+  const ctx = document.getElementById('equityChart').getContext('2d');
+  if (equityChart) equityChart.destroy();
+  const labels = data.map(d => d.date);
+  equityChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Strategy', data: equity, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.08)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.1 },
+        { label: 'Buy & Hold', data: buyHold, borderColor: '#6366f1', borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false, tension: 0.1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 11 }, usePointStyle: true, padding: 16 } },
+        tooltip: { backgroundColor: '#1a1f2e', borderColor: '#2a3042', borderWidth: 1, titleColor: '#e2e8f0', bodyColor: '#94a3b8', padding: 12, cornerRadius: 8,
+          callbacks: { label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y?.toFixed(2)}` }
+        }
+      },
+      scales: {
+        x: { type: 'time', time: { unit: 'month', tooltipFormat: 'MMM dd, yyyy' }, ticks: { color: '#64748b', maxTicksLimit: 12 }, grid: { color: 'rgba(42,48,66,.4)' } },
+        y: { ticks: { color: '#64748b', callback: v => '$' + v.toLocaleString() }, grid: { color: 'rgba(42,48,66,.4)' } }
+      }
+    }
+  });
+}
+
+// ─── RENDER TRADE LOG ───
+function renderTradeLog(trades) {
+  const tbody = document.querySelector('#trade-table tbody');
+  tbody.innerHTML = trades.map((t, i) =>
+    `<tr><td>${i + 1}</td><td>${t.date}</td><td><span class="tag tag-${t.type.toLowerCase()}">${t.type === 'BUY' ? '▲ BUY' : '▼ SELL'}</span></td><td>$${t.price.toFixed(2)}</td><td>${t.shares}</td><td style="color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}</td><td style="color:${t.cumReturn >= 0 ? 'var(--green)' : 'var(--red)'}">${t.cumReturn >= 0 ? '+' : ''}${t.cumReturn.toFixed(2)}%</td></tr>`
+  ).join('');
+}
+
+// ─── LOADING ───
+function showLoading(el) {
+  const ov = document.createElement('div');
+  ov.className = 'loading-overlay';
+  ov.innerHTML = '<div class="spinner"></div><div class="loading-text">Fetching data & running backtest...</div>';
+  el.style.position = 'relative';
+  el.appendChild(ov);
+  return ov;
+}
+
+// ─── MAIN RUN ───
+async function runBacktest() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true; btn.textContent = '⏳ Running...';
+  const main = document.getElementById('main-content');
+  const loader = showLoading(main);
+
+  try {
+    const ticker = document.getElementById('ticker').value.trim().toUpperCase() || 'AAPL';
+    document.getElementById('ticker').value = ticker;
+    const strategy = document.getElementById('strategy').value;
+    const capital = parseFloat(document.getElementById('capital').value) || 10000;
+    const useCommission = document.getElementById('commission-toggle').classList.contains('on');
+    const commission = useCommission ? 0.001 : 0;
+
+    const params = {};
+    if (strategy === 'ma') {
+      params.maType = document.getElementById('ma-type').value;
+      params.short = parseInt(document.getElementById('ma-short').value) || 20;
+      params.long = parseInt(document.getElementById('ma-long').value) || 50;
+    } else if (strategy === 'rsi') {
+      params.period = parseInt(document.getElementById('rsi-period').value) || 14;
+      params.oversold = parseFloat(document.getElementById('rsi-oversold').value) || 30;
+      params.overbought = parseFloat(document.getElementById('rsi-overbought').value) || 70;
+    } else if (strategy === 'bb') {
+      params.period = parseInt(document.getElementById('bb-period').value) || 20;
+      params.std = parseFloat(document.getElementById('bb-std').value) || 2;
+    } else if (strategy === 'macd') {
+      params.fast = parseInt(document.getElementById('macd-fast').value) || 12;
+      params.slow = parseInt(document.getElementById('macd-slow').value) || 26;
+      params.signal = parseInt(document.getElementById('macd-signal').value) || 9;
+    }
+
+    const data = await fetchData(ticker, selectedRange);
+    const { signals, overlays = {} } = getSignals(strategy, data, params);
+    const result = runBacktestEngine(data, signals, capital, commission);
+    result.signals = signals;
+
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'contents';
+
+    renderMetrics(result.metrics);
+    renderPriceChart(data, result, overlays);
+    renderEquityChart(data, result.equity, result.buyHold);
+    renderTradeLog(result.trades);
+  } catch (err) {
+    console.error(err);
+    alert('Error: ' + err.message);
+  } finally {
+    loader.remove();
+    btn.disabled = false; btn.textContent = '▶ Run Backtest';
+  }
+}
+
+</script>
+</body>
+</html>
